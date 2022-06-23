@@ -11,7 +11,7 @@ const SIGNER_PRIVATEKEY = process.env.SIGNER_PRIVATEKEY;
 
 const NETWORK = process.env.NETWORK
 
-async function getUsersDefix() { 
+const getUsersDefix = async (req, res) => {
     try {
         const keyStore = new keyStores.InMemoryKeyStore()
 
@@ -28,9 +28,9 @@ async function getUsersDefix() {
         })
 
         const response = await contract.get_users()
-        return response
+        res.json(response)
     } catch (error) {
-        return error
+        res.status(404).json
     }
 }
 

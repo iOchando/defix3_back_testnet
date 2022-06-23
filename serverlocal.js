@@ -2,7 +2,7 @@ const express = require('express');
 const morgan = require('morgan');
 const app = express(),
       bodyParser = require("body-parser");
-      port = 3081;
+      port = 3080;
 
 const cors = require('cors');
 const { dbConnect } = require('./config/postgres')

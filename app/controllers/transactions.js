@@ -82,10 +82,9 @@ async function Ejecutartransaction(req, res) {
             if (fromAddress && toAddress) {
                 if (coin === "BTC") {
                     response = await transactionBTC(fromDefix, fromAddress, privateKey, toDefix, toAddress, coin, amount, tipoEnvio)
-                    
+                    console.log(response)
                 } else if (coin === "NEAR"){
                     response = await transactionNEAR(fromDefix, fromAddress, privateKey, toDefix, toAddress, coin, amount, tipoEnvio)
-                    
                 } else if (coin === "ETH"){
                     response = await transactionETH(fromDefix, fromAddress, privateKey, toDefix, toAddress, coin, amount, tipoEnvio)
                     
@@ -146,7 +145,24 @@ async function transactionBTC(fromDefix, fromAddress, privateKey, toDefix, toAdd
         var ECPair = ecfacory.ECPairFactory(secp);
         var keys = ECPair.fromWIF(privateKey ,network)
 
-        var data = '{\n    "inputs": [\n        {\n            "addresses": [\n                "' + fromAddress +'"\n            ]\n        }\n    ],\n    "outputs": [\n        {\n            "addresses": [\n                "'+ toAddress +'"\n            ],\n            "value": '+ amountSatoshi +'\n        }\n    ]\n}';
+        //var data = '{\n    "inputs": [\n        {\n            "addresses": [\n                "' + fromAddress +'"\n            ]\n        }\n    ],\n    "outputs": [\n        {\n            "addresses": [\n                "'+ toAddress +'"\n            ],\n            "value": '+ amountSatoshi +'\n        }\n    ]\n}';
+        var data = {
+            inputs: [
+                {
+                    addresses: [
+                        fromAddress
+                    ]
+                }
+            ],
+            outputs: [
+                {
+                    addresses: [
+                        fromAddress
+                    ],
+                    value: amountSatoshi
+                }
+            ]
+        }
         var config = {
             method: 'post',
             url: 'https://api.blockcypher.com/v1/btc/'+process.env.BLOCKCYPHER+'/txs/new',
@@ -155,9 +171,12 @@ async function transactionBTC(fromDefix, fromAddress, privateKey, toDefix, toAdd
             },
             data: data
         };
+
+        var txHash
         
         const response = await axios(config)
             .then(function (tmptx) {
+                console.log("hola")
                 tmptx.data.pubkeys = [];
                 tmptx.data.signatures = tmptx.data.tosign.map(function (tosign, n) {
                     tmptx.data.pubkeys.push(keys.publicKey.toString('hex'));
@@ -168,7 +187,9 @@ async function transactionBTC(fromDefix, fromAddress, privateKey, toDefix, toAdd
                     });
                     
                 const result = axios.post('https://api.blockcypher.com/v1/btc/'+process.env.BLOCKCYPHER+'/txs/send', tmptx.data)
+                console.log(result)
                     .then(function (finaltx) {
+                        txHash = finaltx.tx.hash
                         return true
                     })
                     .catch(function (xhr) {
@@ -177,10 +198,12 @@ async function transactionBTC(fromDefix, fromAddress, privateKey, toDefix, toAdd
                 return result
             })
             .catch(function (error) {
+                console.log("error")
                 return error
             });
+  
         if (response === true) {
-            const transaction = await saveTransaction(fromDefix, toDefix, coin, amount, fromAddress, toAddress)
+            const transaction = await saveTransaction(fromDefix, toDefix, coin, amount, fromAddress, toAddress, txHash)
             const resSend = await getEmailFlagFN(fromDefix, "SEND")
             const resReceive = await getEmailFlagFN(toDefix, "RECEIVE")
             item = {
@@ -217,7 +240,7 @@ async function transactionNEAR(fromDefix, fromAddress, privateKey, toDefix, toAd
           )
 
         if (response) {
-            const transaction = await saveTransaction(fromDefix, toDefix, coin, amount, fromAddress, toAddress)
+            const transaction = await saveTransaction(fromDefix, toDefix, coin, amount, fromAddress, toAddress, response.transaction.hash)
             const resSend = await getEmailFlagFN(fromDefix, "SEND")
             const resReceive = await getEmailFlagFN(toDefix, "RECEIVE")
             item = {
@@ -252,7 +275,7 @@ async function transactionETH(fromDefix, fromAddress, privateKey, toDefix, toAdd
         const result = await web3.eth.sendSignedTransaction(txSigned.rawTransaction)
 
         if (result) {
-            const transaction = await saveTransaction(fromDefix, toDefix, coin, amount, fromAddress, toAddress)
+            const transaction = await saveTransaction(fromDefix, toDefix, coin, amount, fromAddress, toAddress, result.transactionHash)
             const resSend = await getEmailFlagFN(fromDefix, "SEND")
             const resReceive = await getEmailFlagFN(toDefix, "RECEIVE")
             item = {
@@ -518,7 +541,7 @@ async function transactionToken(fromDefix, fromAddress, privateKey, toDefix, toA
         const tx = await contract.transfer(toAddress, srcAmount);
 
         if (tx) {
-            const transaction = await saveTransaction(fromDefix, toDefix, coin, amount, fromAddress, toAddress)
+            const transaction = await saveTransaction(fromDefix, toDefix, coin, amount, fromAddress, toAddress, tx.hash)
             const resSend = await getEmailFlagFN(fromDefix, "SEND")
             const resReceive = await getEmailFlagFN(toDefix, "RECEIVE")
             item = {
@@ -538,7 +561,7 @@ async function transactionToken(fromDefix, fromAddress, privateKey, toDefix, toA
     }
 }
 
-async function saveTransaction(fromDefix, toDefix, coin, amount, fromAddress, toAddress) { 
+async function saveTransaction(fromDefix, toDefix, coin, amount, fromAddress, toAddress, hash) { 
     try {        
         let date_ob = new Date();
         let date = ("0" + date_ob.getDate()).slice(-2);
@@ -552,9 +575,9 @@ async function saveTransaction(fromDefix, toDefix, coin, amount, fromAddress, to
 
         const conexion = await dbConnect()
         const response = await conexion.query(`insert into transactions
-        (from_defix, from_address, to_defix, to_address, coin, value, date_time, date_fech ,date_year, date_month)
+        (from_defix, from_address, to_defix, to_address, coin, value, date_time, date_fech ,date_year, date_month, hash)
         values
-        ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)`, [fromDefix, fromAddress, toDefix, toAddress, coin, String(amount), String(date_time), String(dateFech), String(year), String(month)])
+        ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)`, [fromDefix, fromAddress, toDefix, toAddress, coin, String(amount), String(date_time), String(dateFech), String(year), String(month), hash])
             .then(() => {
                 var transaction = {}
                 transaction.from_defix = fromDefix
@@ -567,6 +590,7 @@ async function saveTransaction(fromDefix, toDefix, coin, amount, fromAddress, to
                 transaction.date_fech = String(dateFech)
                 transaction.date_year = String(year)
                 transaction.date_month = String(month)
+                transaction.hash = hash
                 return transaction
             }).catch((error) => {
                 return false
@@ -652,6 +676,7 @@ async function getEmailFlagFN(defixId, tipo) {
 // fin configuracion envio correo //
 
 async function EnvioCorreo(from, to, type, data) {
+    console.log(from, to, type, data)
   var transporter = nodemailer.createTransport({
     service: 'gmail',
     auth: {
@@ -659,6 +684,9 @@ async function EnvioCorreo(from, to, type, data) {
       pass: process.env.PASS_MAIL,
     }
   });
+
+  console.log(process.env.USER_MAIL)
+  console.log(process.env.PASS_MAIL)
 
   let from_admin = process.env.USER_MAIL;
 
@@ -686,6 +714,7 @@ async function EnvioCorreo(from, to, type, data) {
           break;
         }
 
+        console.log(tipoEnvio)
         if(tipoEnvio != '') {
           var mailOptionsFrom;
           mailOptionsFrom = {
@@ -702,6 +731,8 @@ async function EnvioCorreo(from, to, type, data) {
             }
           }
           transporter.sendMail(mailOptionsFrom, function(error, info){
+            console.log("error",error)
+            console.log("info",info)
             return true
           });
         }
@@ -743,6 +774,8 @@ async function EnvioCorreo(from, to, type, data) {
         }
       }
       transporter.sendMail(mailOptions, function(error, info){
+        console.log("error", error)
+        console.log("info", info)
         return true
       });
     }

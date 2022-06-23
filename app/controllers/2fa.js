@@ -5,6 +5,14 @@ const nearSEED = require("near-seed-phrase");
 const { authenticator } = require('otplib')
 const QRCode = require('qrcode')
 
+/*
+const secp = require('tiny-secp256k1');
+const ecfacory = require('ecpair');
+const path = require('path');
+const { ParaSwap } = require('paraswap');
+const { response } = require('express');
+*/
+
 const { utils, Contract, keyStores, KeyPair , Near, Account} = nearAPI;
 
 const CONTRACT_NAME = process.env.CONTRACT_NAME;
@@ -12,6 +20,7 @@ const SIGNER_ID = process.env.SIGNER_ID;
 const SIGNER_PRIVATEKEY = process.env.SIGNER_PRIVATEKEY;
 
 const NETWORK = process.env.NETWORK;
+
 
 const generar_2fa = async (req, res) => {
     try {
@@ -33,21 +42,23 @@ const generar_2fa = async (req, res) => {
                             const secret = authenticator.generateSecret();
                             await conexion.query("update users set secret = $1 where defix_id = $2 ", [secret, defixId])
                             .then(() => {
-                                QRCode.toDataURL(authenticator.keyuri(defixId, 'Defix3 App', secret), (err, url) => {
+                                let codigo = authenticator.keyuri(defixId, 'Defix3 App', secret)
+                                QRCode.toDataURL(codigo, (err, url) => {
                                     if (err) {
                                     throw err
                                     }
-                                    res.json({respuesta: "ok", qr: url})
+                                    res.json({respuesta: "ok", qr: url, codigo: secret})
                                 })
                             }).catch(() => {
                                 res.status(500).json({respuesta: "error en la base de datos"})        
                             })
                         } else {
-                            QRCode.toDataURL(authenticator.keyuri(defixId, 'Defix3 App', resultados.rows[0].secret), (err, url) => {
+                            let codigo = authenticator.keyuri(defixId, 'Defix3 App', resultados.rows[0].secret)
+                            QRCode.toDataURL(codigo, (err, url) => {
                                 if (err) {
                                 throw err
                                 }
-                                res.json({respuesta: "ok", qr: url})
+                                res.json({respuesta: "ok", qr: url, codigo: resultados.rows[0].secret})
                             })
                         }
                     }

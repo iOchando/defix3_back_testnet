@@ -60,17 +60,23 @@ const setEmailData = async (req, res) => {
 
 async function EjecutarsetEmailData(req, res) {
     try {
-        const { defixId, mnemonic, email, flag_send, flag_receive, flag_dex, flag_fiat } = req.body
+        const { defixId, mnemonic, email, flag_send, flag_receive, flag_dex, flag_fiat, name, last_name, legal_document, type_document } = req.body
 
         const response = await validateMnemonicDefix(defixId, mnemonic)
         var result 
 
+        if (legal_document ==! null) {
+            if (type_document ==! "v" && type_document ==! "j") { 
+                return res.status(204).json({respuesta: "Error tipo de documento"})
+            }
+        }
+
         if (response === true) {
             const conexion = await dbConnect()
             await conexion.query("update users\
-                                set email = $1, flag_send = $2, flag_receive = $3, flag_dex = $4, flag_fiat = $5 where\
-                                defix_id = $6\
-                                ", [email, flag_send, flag_receive, flag_dex, flag_fiat, defixId])
+                                set email = $1, flag_send = $2, flag_receive = $3, flag_dex = $4, flag_fiat = $5, name = $6, last_name = $7, legal_document = $8, type_document=$9 where\
+                                defix_id = $10\
+                                ", [email, flag_send, flag_receive, flag_dex, flag_fiat, name, last_name, legal_document, type_document, defixId])
                 .then(() => {
                     result = true
                 }).catch(() => {
@@ -93,7 +99,7 @@ const getEmailData = async (req, res) => {
         if (response) {
             const conexion = await dbConnect()
         
-            const resultados = await conexion.query("select email, flag_send, flag_receive, flag_dex, flag_fiat, dosfa \
+            const resultados = await conexion.query("select email, flag_send, flag_receive, flag_dex, flag_fiat, name, last_name, legal_document, type_document, dosfa \
                                                     from users where \
                                                     defix_id = $1\
                                                     ", [defixId])
