@@ -8,15 +8,241 @@ const { TOKENS } = require('../helpers/tokens')
 var nodemailer = require('nodemailer'); 
 const hbs = require('nodemailer-express-handlebars')
 const path = require('path');
-
+const BigNumber = require('big-number');
+const ethers = require('ethers');
 const { Contract, keyStores, KeyPair , Near, Account} = nearAPI;
 const { status2fa, validarCode2fa } = require('./2fa')
+
+const ETHERSCAN = process.env.ETHERSCAN
 
 ETHEREUM_NETWORK = process.env.ETHEREUM_NETWORK
 INFURA_PROJECT_ID = process.env.INFURA_PROJECT_ID
 
 const NETWORK = process.env.NETWORK
 const NETWORK_PARASWAP = process.env.NETWORK_PARASWAP
+
+const minABI = [
+    {
+        constant: true,
+        inputs: [],
+        name: "name",
+        outputs: [
+            {
+                name: "",
+                type: "string"
+            }
+        ],
+        payable: false,
+        stateMutability: "view",
+        type: "function"
+    },
+    {
+        constant: false,
+        inputs: [
+            {
+                name: "_spender",
+                type: "address"
+            },
+            {
+                name: "_value",
+                type: "uint256"
+            }
+        ],
+        name: "approve",
+        outputs: [
+            {
+                name: "",
+                type: "bool"
+            }
+        ],
+        payable: false,
+        stateMutability: "nonpayable",
+        type: "function"
+    },
+    {
+        constant: true,
+        inputs: [],
+        name: "totalSupply",
+        outputs: [
+            {
+                name: "",
+                type: "uint256"
+            }
+        ],
+        payable: false,
+        stateMutability: "view",
+        type: "function"
+    },
+    {
+        constant: false,
+        inputs: [
+            {
+                name: "_from",
+                type: "address"
+            },
+            {
+                name: "_to",
+                type: "address"
+            },
+            {
+                name: "_value",
+                type: "uint256"
+            }
+        ],
+        name: "transferFrom",
+        outputs: [
+            {
+                name: "",
+                type: "bool"
+            }
+        ],
+        payable: false,
+        stateMutability: "nonpayable",
+        type: "function"
+    },
+    {
+        constant: true,
+        inputs: [],
+        name: "decimals",
+        outputs: [
+            {
+                name: "",
+                type: "uint8"
+            }
+        ],
+        payable: false,
+        stateMutability: "view",
+        type: "function"
+    },
+    {
+        constant: true,
+        inputs: [
+            {
+                name: "_owner",
+                type: "address"
+            }
+        ],
+        name: "balanceOf",
+        outputs: [
+            {
+                name: "balance",
+                type: "uint256"
+            }
+        ],
+        payable: false,
+        stateMutability: "view",
+        type: "function"
+    },
+    {
+        constant: true,
+        inputs: [],
+        name: "symbol",
+        outputs: [
+            {
+                name: "",
+                type: "string"
+            }
+        ],
+        payable: false,
+        stateMutability: "view",
+        type: "function"
+    },
+    {
+        constant: false,
+        inputs: [
+            {
+                name: "_to",
+                type: "address"
+            },
+            {
+                name: "_value",
+                type: "uint256"
+            }
+        ],
+        name: "transfer",
+        outputs: [
+            {
+                name: "",
+                type: "bool"
+            }
+        ],
+        payable: false,
+        stateMutability: "nonpayable",
+        type: "function"
+    },
+    {
+        constant: true,
+        inputs: [
+            {
+                name: "_owner",
+                type: "address"
+            },
+            {
+                name: "_spender",
+                type: "address"
+            }
+        ],
+        name: "allowance",
+        outputs: [
+            {
+                name: "",
+                type: "uint256"
+            }
+        ],
+        payable: false,
+        stateMutability: "view",
+        type: "function"
+    },
+    {
+        payable: true,
+        stateMutability: "payable",
+        type: "fallback"
+    },
+    {
+        anonymous: false,
+        inputs: [
+            {
+                indexed: true,
+                name: "owner",
+                type: "address"
+            },
+            {
+                indexed: true,
+                name: "spender",
+                type: "address"
+            },
+            {
+                indexed: false,
+                name: "value",
+                type: "uint256"
+            }
+        ],
+        name: "Approval",
+        type: "event"
+    },
+    {
+        anonymous: false,
+        inputs: [
+            {
+                indexed: true,
+                name: "from",
+                type: "address"
+            },
+            {
+                indexed: true,
+                name: "to",
+                type: "address"
+            },
+            {
+                indexed: false,
+                name: "value",
+                type: "uint256"
+            }
+        ],
+        name: "Transfer",
+        type: "event"
+    }
+]
 
 const web3 = new Web3(
     new Web3.providers.HttpProvider(
@@ -56,6 +282,7 @@ const swapPreviewETH = async (req, res) => {
             destToken,
             srcAmount,
         );
+        console.log("review", priceRoute)
         res.json(priceRoute)
     } catch (error) {
         return error
@@ -66,6 +293,7 @@ const swapPreviewETH = async (req, res) => {
 const swapTokenETH = async (req, res) => {
   const { fromDefix } = req.body
   status2fa(fromDefix).then((respStatus) => {
+    console.log("Estatus 2fa", respStatus)
       switch (respStatus) {
           case true: {
               const { code } = req.body;
@@ -73,6 +301,7 @@ const swapTokenETH = async (req, res) => {
                   console.log(respValidacion);
                   switch (respValidacion) {
                       case true: {
+                          console.log("Ejecuta el swap")
                           return EjecutarswapTokenETH(req, res);
                       }
                       case false: {
@@ -86,6 +315,7 @@ const swapTokenETH = async (req, res) => {
           }
               break;
           case false: {
+              console.log("False Ejecuta el swap")
               return EjecutarswapTokenETH(req, res);
           }
           default: res.status(500).json({respuesta: "Error interno del sistema"})
@@ -112,8 +342,39 @@ async function EjecutarswapTokenETH(req, res) {
             signer.address,
         );
 
+        console.log("tx",txParams)
+
+    
+        /*const transaction = {
+            ...txParams,
+            gasLimit: 60000,
+            //gasPrice: web3.utils.toWei('1.1', 'gwei')
+            value: 0
+        };*/
+
+        let provider = new ethers.getDefaultProvider(ETHERSCAN, {
+            etherscan: "NJY5S9GUBP42U7ZQX11MG8CQ18C28UE3M1",
+        })
+
+        const wallet = new ethers.Wallet(privateKey)
+        const signerr = wallet.connect(provider)
+
+        console.log("amount", priceRoute.srcAmount)
+        //const contract = new ethers.Contract(priceRoute.srcToken, minABI, signerr);
+        //const approve = await contract.approve("0x216b4b4ba9f3e719726886d34a177484278bfcae", 10);
+        console.log("hola1")
+        //const r = await approve.wait()
+        //console.log("approve: ", r)
+
+        console.log(txParams)
+        console.log("Firma el tx")
         const txSigned = await signer.signTransaction(txParams)
+
+        console.log("tx signed")
+        console.log(txSigned)
         const result = await web3.eth.sendSignedTransaction(txSigned.rawTransaction)
+
+        console.log("Result swap", result)
 
         const resSend = await getEmailFlagFN(fromDefix, "DEX")
         item = {
@@ -126,7 +387,8 @@ async function EjecutarswapTokenETH(req, res) {
         EnvioCorreo(resSend, null, "swap", item)
         return res.json({respuesta: "ok", data: result})
     } catch (error) {
-        return res.status(500).json({respuesta: "Error"})
+        console.log(error)
+        return res.status(204).json({respuesta: "Error"})
     }
 }
 

@@ -82,7 +82,6 @@ async function Ejecutartransaction(req, res) {
             if (fromAddress && toAddress) {
                 if (coin === "BTC") {
                     response = await transactionBTC(fromDefix, fromAddress, privateKey, toDefix, toAddress, coin, amount, tipoEnvio)
-                    console.log(response)
                 } else if (coin === "NEAR"){
                     response = await transactionNEAR(fromDefix, fromAddress, privateKey, toDefix, toAddress, coin, amount, tipoEnvio)
                 } else if (coin === "ETH"){
@@ -98,7 +97,10 @@ async function Ejecutartransaction(req, res) {
                     response = await transactionToken(fromDefix, fromAddress, privateKey, toDefix, toAddress, coin, amount, tipoEnvio)
                     
                 }
-                return res.json({respuesta: "ok", data: response})
+                if (response) {
+                    return res.json({respuesta: "ok", data: response})
+                } 
+                return res.status(204).json({respuesta: "error", data: "Fallo la transaccion"})
             } else {
                 return res.json({respuesta: "wallet"})
             }
@@ -120,7 +122,10 @@ async function Ejecutartransaction(req, res) {
                 } else if (coin === "USDC") {
                     response = await transactionToken(fromDefix, fromAddress, privateKey, toDefix, toAddress, coin, amount, tipoEnvio)
                 }
-                return res.json({respuesta: "ok", data: response})
+                if (response) {
+                    return res.json({respuesta: "ok", data: response})
+                } 
+                return res.status(204).json({respuesta: "error", data: "Fallo la transaccion"})
             } else {
                 return res.json({respuesta: "wallet"})
             }
@@ -198,8 +203,8 @@ async function transactionBTC(fromDefix, fromAddress, privateKey, toDefix, toAdd
                 return result
             })
             .catch(function (error) {
-                console.log("error")
-                return error
+                console.log(error)
+                return false
             });
   
         if (response === true) {
@@ -213,11 +218,11 @@ async function transactionBTC(fromDefix, fromAddress, privateKey, toDefix, toAdd
                 emisor: fromDefix,
                 tipoEnvio: tipoEnvio
             }
-            EnvioCorreo(resSend, resReceive, "envio", item)
+            await EnvioCorreo(resSend, resReceive, "envio", item)
             return transaction
         }
     } catch (error) {
-        return error
+        return false
     }
 }
 
@@ -257,7 +262,7 @@ async function transactionNEAR(fromDefix, fromAddress, privateKey, toDefix, toAd
         }
 
     } catch (error) {
-        return error
+        return false
     }
 }
 
@@ -292,13 +297,16 @@ async function transactionETH(fromDefix, fromAddress, privateKey, toDefix, toAdd
         }
 
     } catch (error) {
-        return error
+        return false
     }
 }
 
 async function transactionToken(fromDefix, fromAddress, privateKey, toDefix, toAddress, coin, amount, tipoEnvio) { 
     try {
-        let provider = new ethers.providers.EtherscanProvider(ETHERSCAN);
+        let provider = new ethers.getDefaultProvider(ETHERSCAN, {
+            etherscan: "NJY5S9GUBP42U7ZQX11MG8CQ18C28UE3M1",
+        })
+
         const wallet = new ethers.Wallet(privateKey)
         const signer = wallet.connect(provider)
 
@@ -534,11 +542,16 @@ async function transactionToken(fromDefix, fromAddress, privateKey, toDefix, toA
                 decimals = tokens[i].decimals
             }
         }
+
         const contract = new ethers.Contract(srcToken, minABI, signer);
         let value = Math.pow(10, decimals)
-        const srcAmount = amount * value
+        let srcAmount = amount * value
 
-        const tx = await contract.transfer(toAddress, srcAmount);
+        console.log("hola")
+
+        const tx = await contract.transfer(toAddress, String(srcAmount));
+        
+        console.log("tx", tx)
 
         if (tx) {
             const transaction = await saveTransaction(fromDefix, toDefix, coin, amount, fromAddress, toAddress, tx.hash)
@@ -557,6 +570,7 @@ async function transactionToken(fromDefix, fromAddress, privateKey, toDefix, toA
             return tx
         }
     } catch (error) {
+        console.log("error", error)
         return false
     }
 }
@@ -858,7 +872,7 @@ const getTransactionHistory = async (req, res) => {
             {date_time character varying COLLATE pg_catalog."default" NOT NULL,
         */
     } catch (error) {
-        return error
+        return false
     }
 }
 
@@ -875,7 +889,7 @@ async function validateNearId(nearId) {
             })
         return response
     } catch (error) {
-        return error
+        return false
     }
 }
 
@@ -901,7 +915,7 @@ async function validateKey(nearId, mnemonic) {
         } 
         return false
     } catch (error) {
-        return error
+        return false
     }
 }
 

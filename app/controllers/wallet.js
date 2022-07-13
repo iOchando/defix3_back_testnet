@@ -173,6 +173,23 @@ const importWallet = async (req, res) => {
             wallet.usdc_credentials = wallet.eth_credentials
 
             const conexion = await dbConnect()
+
+            const resultados = await conexion.query("select * \
+                                                    from users where \
+                                                    defix_id = $1\
+                                                    ", [defixId])
+
+            if(resultados.rows.length === 0) {
+                await conexion.query(`insert into users
+                    (defix_id, dosfa, secret)
+                    values ($1, false, null)`, [defixId])
+                        .then(() => {
+                            return true
+                        }).catch(() => {
+                            return false
+                        })
+            }
+
             var result
             await conexion.query("update users\
                                 set close_sessions = $1 where\
