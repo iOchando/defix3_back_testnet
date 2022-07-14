@@ -2,12 +2,6 @@ const { CONFIG } = require('../helpers/utils')
 const { dbConnect } = require('../../config/postgres')
 const nearAPI = require("near-api-js");
 const nearSEED = require("near-seed-phrase");
-const bip32 = require('bip32')
-const bip39 = require('bip39')
-const bitcoin = require('bitcoinjs-lib')
-const Web3 = require('web3');
-const ethers = require('ethers');
-const axios = require('axios');
 /*
 const secp = require('tiny-secp256k1');
 const ecfacory = require('ecpair');

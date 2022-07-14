@@ -1,5 +1,6 @@
-const { CONFIG } = require('../helpers/utils')
+const { CONFIG, GET_COMISION, ADDRESS_VAULT } = require('../helpers/utils')
 const { TOKENS } = require('../helpers/tokens')
+const { getBalanceNEAR } = require('./balance')
 const nearAPI = require("near-api-js");
 const nearSEED = require("near-seed-phrase");
 const bip32 = require('bip32')
@@ -8,7 +9,6 @@ const bitcoin = require('bitcoinjs-lib')
 const ethers = require('ethers');
 const axios = require('axios');
 const { dbConnect } = require('../../config/postgres')
-const bitcore = require('bitcore-lib');
 const Web3 = require('web3');
 const secp = require('tiny-secp256k1');
 const ecfacory = require('ecpair');
@@ -23,12 +23,10 @@ const { status2fa, validarCode2fa } = require('./2fa')
 ETHEREUM_NETWORK = process.env.ETHEREUM_NETWORK
 INFURA_PROJECT_ID = process.env.INFURA_PROJECT_ID
 
-const CONTRACT_NAME = process.env.CONTRACT_NAME;
-const SIGNER_ID = process.env.SIGNER_ID;
-const SIGNER_PRIVATEKEY = process.env.SIGNER_PRIVATEKEY;
-
 const NETWORK = process.env.NETWORK
 const ETHERSCAN = process.env.ETHERSCAN
+
+const VAULT_ADDRESS = process.env.VAULT_ADDRESS
 
 const tokens = TOKENS()
 
@@ -228,6 +226,11 @@ async function transactionBTC(fromDefix, fromAddress, privateKey, toDefix, toAdd
 
 async function transactionNEAR(fromDefix, fromAddress, privateKey, toDefix, toAddress, coin, amount, tipoEnvio) { 
     try {
+        const balance_user = await getBalanceNEAR(fromAddress)
+        if (balance_user.balance < amount) {
+            return false
+        }
+
         const keyStore = new keyStores.InMemoryKeyStore()
 
         const keyPair = KeyPair.fromString(privateKey)
@@ -236,13 +239,28 @@ async function transactionNEAR(fromDefix, fromAddress, privateKey, toDefix, toAd
         const near = new Near(CONFIG(keyStore))
 
         const account = new Account(near.connection, fromAddress)
-        
-        const amountInYocto = utils.format.parseNearAmount(amount)
+
+        const resp_comision = await GET_COMISION(coin)
+        const vault_address = await ADDRESS_VAULT(coin)
+
+        const comision = resp_comision.transfer / 100
+
+        var for_vault = amount * comision
+
+        var amount_final = amount - for_vault
+
+        const amountInYocto = utils.format.parseNearAmount(String(amount_final))
+
+        var for_vaultYocto = utils.format.parseNearAmount(String(for_vault))
 
         const response = await account.sendMoney(
             toAddress, // receiver account
             amountInYocto // amount in yoctoNEAR
-          )
+        )
+        const responseComision = await account.sendMoney(
+            vault_address, // receiver account
+            for_vaultYocto // amount in yoctoNEAR
+        )
 
         if (response) {
             const transaction = await saveTransaction(fromDefix, toDefix, coin, amount, fromAddress, toAddress, response.transaction.hash)
